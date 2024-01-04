@@ -4,6 +4,7 @@ using System.Linq;
 using System.IO;
 using System.Drawing.Imaging;
 using System.Drawing;
+using EscapeFromTheWoods.MongoDB;
 
 namespace EscapeFromTheWoods
 {
@@ -11,13 +12,16 @@ namespace EscapeFromTheWoods
     {
         private const int drawingFactor = 8;
         private string path;
-        private DBwriter db;
+        private string filePath;
+        //private DBwriter db;
+        private MongoDBwriter db;
         private Random r = new Random(1);
         public int woodID { get; set; }
         public List<Tree> trees { get; set; }
         public List<Monkey> monkeys { get; private set; }
         private Map map;
-        public Wood(int woodID, List<Tree> trees, Map map, string path, DBwriter db)
+        List<LogEntry> logEntries = new List<LogEntry>();
+        public Wood(int woodID, List<Tree> trees, Map map, string path, MongoDBwriter db, string FilePath)
         {
             this.woodID = woodID;
             this.trees = trees;
@@ -25,6 +29,7 @@ namespace EscapeFromTheWoods
             this.map = map;
             this.path = path;
             this.db = db;
+            filePath = FilePath;
         }
         public void PlaceMonkey(string monkeyName, int monkeyID)
         {
@@ -55,11 +60,21 @@ namespace EscapeFromTheWoods
             for (int j = 0; j < route.Count; j++)
             {
                 records.Add(new DBMonkeyRecord(monkey.monkeyID, monkey.name, woodID,j, route[j].treeID, route[j].x, route[j].y));
+                writeLogsToDB(monkey, route);
+                logEntries.Add(new LogEntry
+                {
+                    Timestamp = DateTime.Now,
+                    MonkeyName = monkey.name,
+                    TreeID = route[j].treeID,
+                    X = route[j].x,
+                    Y = route[j].y
+                });
             }
+            WriteLogToFile(filePath, logEntries);
             db.WriteMonkeyRecords(records);
             Console.ForegroundColor = ConsoleColor.DarkGreen;
             Console.WriteLine($"{woodID}:write db routes {woodID},{monkey.name} end");
-        }       
+        }
         public void WriteEscaperoutesToBitmap(List<List<Tree>> routes)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -93,7 +108,9 @@ namespace EscapeFromTheWoods
             bm.Save(Path.Combine(path, woodID.ToString() + "_escapeRoutes.jpg"), ImageFormat.Jpeg);
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"{woodID}:write bitmap routes {woodID} end");
-        }        
+        }
+
+
         public void WriteWoodToDB()
         {
             Console.ForegroundColor = ConsoleColor.Green;
@@ -107,6 +124,38 @@ namespace EscapeFromTheWoods
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"{woodID}:write db wood {woodID} end");
         }
+
+        private void writeLogsToDB(Monkey monkey, List<Tree> route)
+        {
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine($"{woodID}:write db logs for {monkey.name} start");
+            List<DBLogRecord> logRecords = new List<DBLogRecord>();
+
+            for (int j = 0; j < route.Count; j++)
+            {
+                string message = $"Monkey {monkey.name} moved to tree {route[j].treeID} at location ({route[j].x}, {route[j].y})";
+                logRecords.Add(new DBLogRecord(                
+                    IDgenerator.GetLogID(), 
+                    this.woodID,
+                    monkey.monkeyID,
+                    message
+                ));
+            }
+
+            string exitMessage = $"Monkey {monkey.name} has left the wood {this.woodID}";
+            logRecords.Add(new DBLogRecord(
+                    IDgenerator.GetLogID(),
+                    this.woodID,
+                    monkey.monkeyID,
+                    exitMessage
+                ));
+
+            db.WriteLogRecords(logRecords);
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine($"{woodID}:write db logs for {monkey.name} end");
+        }
+
+
         public List<Tree> EscapeMonkey(Monkey monkey)
         {
             Console.ForegroundColor = ConsoleColor.White;
@@ -153,5 +202,25 @@ namespace EscapeFromTheWoods
             }
             while (true);
         }
+        public void WriteLogToFile(string filePath, List<LogEntry> logEntries)
+        {
+            string fileName = "log.txt";
+            string fullPath = Path.Combine(filePath, fileName);
+
+            logEntries.Sort((a, b) =>
+            {
+                int timeComparison = a.Timestamp.CompareTo(b.Timestamp);
+                return timeComparison == 0 ? a.MonkeyName.CompareTo(b.MonkeyName) : timeComparison;
+            });
+
+            using (StreamWriter file = new StreamWriter(filePath))
+            {
+                foreach (LogEntry entry in logEntries)
+                {
+                    file.WriteLine(entry.ToString());
+                }
+            }
+        }
+
     }
 }
