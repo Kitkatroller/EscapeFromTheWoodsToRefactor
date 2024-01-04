@@ -206,7 +206,7 @@ namespace EscapeFromTheWoods
         }
         public void WriteLogToFile(string filePath, List<LogEntry> logEntries)
         {
-            string fileName = "log.txt";
+            string fileName = "log"+ woodID + ".txt";
             string fullPath = Path.Combine(filePath, fileName);
 
             var sortedLogEntries = logEntries.OrderBy(entry => entry.JumpNumber).ThenBy(entry => entry.MonkeyName);
