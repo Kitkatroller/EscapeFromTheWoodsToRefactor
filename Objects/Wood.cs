@@ -57,20 +57,21 @@ namespace EscapeFromTheWoods
             Console.ForegroundColor = ConsoleColor.DarkGreen;
             Console.WriteLine($"{woodID}:write db routes {woodID},{monkey.name} start");
             List<DBMonkeyRecord> records = new List<DBMonkeyRecord>();
+            int jumpNumber = 1;
             for (int j = 0; j < route.Count; j++)
             {
                 records.Add(new DBMonkeyRecord(monkey.monkeyID, monkey.name, woodID,j, route[j].treeID, route[j].x, route[j].y));
                 writeLogsToDB(monkey, route);
                 logEntries.Add(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    JumpNumber = jumpNumber,
                     MonkeyName = monkey.name,
                     TreeID = route[j].treeID,
                     X = route[j].x,
                     Y = route[j].y
                 });
+                jumpNumber++;
             }
-            WriteLogToFile(filePath, logEntries);
             db.WriteMonkeyRecords(records);
             Console.ForegroundColor = ConsoleColor.DarkGreen;
             Console.WriteLine($"{woodID}:write db routes {woodID},{monkey.name} end");
@@ -199,6 +200,7 @@ namespace EscapeFromTheWoods
 
                 route.Add(distanceToMonkey.First().Value.First());
                 monkey.tree = distanceToMonkey.First().Value.First();
+                WriteLogToFile(filePath, logEntries);
             }
             while (true);
         }
@@ -207,15 +209,12 @@ namespace EscapeFromTheWoods
             string fileName = "log.txt";
             string fullPath = Path.Combine(filePath, fileName);
 
-            logEntries.Sort((a, b) =>
-            {
-                int timeComparison = a.Timestamp.CompareTo(b.Timestamp);
-                return timeComparison == 0 ? a.MonkeyName.CompareTo(b.MonkeyName) : timeComparison;
-            });
+            var sortedLogEntries = logEntries.OrderBy(entry => entry.JumpNumber).ThenBy(entry => entry.MonkeyName);
 
-            using (StreamWriter file = new StreamWriter(filePath))
+
+            using (StreamWriter file = new StreamWriter(fullPath))
             {
-                foreach (LogEntry entry in logEntries)
+                foreach (var entry in sortedLogEntries)
                 {
                     file.WriteLine(entry.ToString());
                 }
